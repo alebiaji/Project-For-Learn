@@ -66,6 +66,9 @@ int UserFunc(pTask_node_t pTask){
             pTask->user_conn = conn;
             printf("[client:%s]user id = %d.\n", pTask->user_ip, pTask->user_id);
             ret = CmdAnalyse(pTask);
+            if(-1 == ret){
+                break;
+            }
         }
 
     }
@@ -161,12 +164,12 @@ int CmdAnalyse(pTask_node_t pTask){
 
     while(1){
         memset(&cmd, 0, sizeof(command_t));
-        recv(pTask->user_cfd, &cmd, sizeof(command_t), MSG_WAITALL);
+        ret = recv(pTask->user_cfd, &cmd, sizeof(command_t), MSG_WAITALL);
         //客户端关闭连接
         if(0 == ret){
             printf("[client:%s]close the connection.\n", pTask->user_ip);
             close(pTask->user_cfd);
-            break;
+            return -1;
         }
         if(0 == strcmp(cmd.cmd_content, "ls")){
             printf("ls\n");
@@ -206,4 +209,6 @@ int CmdAnalyse(pTask_node_t pTask){
         }
         send(pTask->user_cfd, &ret, 4, 0);
     }
+
+    return 0;
 }
