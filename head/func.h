@@ -20,7 +20,7 @@ int Login(pAccount_t acc, MYSQL *db_connect);
 int SignIn(pAccount_t acc, MYSQL *db_connect);
 int UserFunc(pTask_node_t pTask);
 void WriteLog(log_fd fd, const char *buf);
-int CmdAnalyse();
+int CmdAnalyse(pTask_node_t pTask);
 
 #endif
 

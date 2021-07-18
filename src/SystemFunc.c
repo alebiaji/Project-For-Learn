@@ -1,6 +1,8 @@
 #include "../head/func.h"
 
-//返回一个用于tcp通信的套接字
+/**
+ * 返回值：成功返回一个socket文件描述符，用于接收客户端连接，失败返回-1
+*/
 socket_fd TcpInit(){
 
     int ret = 0;
@@ -32,6 +34,11 @@ socket_fd TcpInit(){
     return sfd;
 }
 
+/**
+ * 返回值：成功返回0，失败返回-1
+ * 参数1：epoll的文件描述符
+ * 参数2：需要监听的文件描述符
+*/
 int EpollAddFd(int epoll_fd, int fd){
 
     int ret = 0;

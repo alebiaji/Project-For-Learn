@@ -95,18 +95,19 @@ int main()
                 client_fd new_fd = accept(sfd, (struct sockaddr *)&addr_client, &len);
                 ERROR_CHECK(new_fd, -1, "accept");
 
-                pTask_node_t task = (pTask_node_t)calloc(1, sizeof(task_node_t));
+                //在堆空间申请任务
+                pTask_node_t pTask = (pTask_node_t)calloc(1, sizeof(task_node_t));
 
                 //添加任务节点
-                task->user_cfd = new_fd;
-                strcpy(task->user_ip, inet_ntoa(addr_client.sin_addr));
+                pTask->user_cfd = new_fd;
+                strcpy(pTask->user_ip, inet_ntoa(addr_client.sin_addr));
 
                 //上锁互斥访问任务队列
                 pthread_mutex_lock(&pool.task_queue.queue_mutex);
 
                 //将与客户端通信的文件描述符加入任务队列
-                ret = InsertTaskQueue(&pool.task_queue, task);
-                ERROR_CHECK(ret, -1, "Insert task queue");
+                ret = InsertTaskQueue(&pool.task_queue, pTask);
+                ERROR_CHECK(ret, -1, "Insert pTask queue");
 
                 //激发所有子线程
                 ret = pthread_cond_broadcast(&pool.task_queue.queue_cond);

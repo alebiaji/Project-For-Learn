@@ -22,10 +22,11 @@ int UserFunc(pTask_node_t pTask){
         //1.接收用户发送过来的用户名，用户密码，功能选择
         ret = recv(pTask->user_cfd, &acc, sizeof(account_t), MSG_WAITALL);
 
+        //客户端关闭连接
         if(0 == ret){
             printf("[client:%s]close the connection.\n", pTask->user_ip);
             close(pTask->user_cfd);
-            return -1;
+            break;
         }
 
         printf("[client:%s]name = %s, passwd = %s.\n", \
@@ -51,16 +52,26 @@ int UserFunc(pTask_node_t pTask){
         if(-1 == ret){
             continue;
         }
-        //4.登录成功，进入命令分析模块
+        //4.登录成功
         else{
+
+            //打开用户log文件
+            //char log_name[50] = { 0 };
+            //sprintf(log_name, "%s/%d.%s", "./log", pTask->user_id, "log");
+            //log_fd lfd= open(log_name, O_WRONLY | O_CREAT | O_APPEND, 0666);
+
+            //保存用户信息
+            //pTask->user_lfd = lfd;
             pTask->user_id = ret;
             pTask->user_conn = conn;
             printf("[client:%s]user id = %d.\n", pTask->user_ip, pTask->user_id);
-            CmdAnalyse();
+            ret = CmdAnalyse(pTask);
         }
 
     }
 
+    //关闭数据库连接
+    database_close(conn);
     return 0;
 }
 
@@ -143,6 +154,56 @@ int SignIn(pAccount_t pAcc, MYSQL *db_connect){
  * 参数3：用户id
  * 参数4：数据库的连接
 */
-int CmdAnalyse(){
-    while(1);
+int CmdAnalyse(pTask_node_t pTask){
+
+    int ret = 1;
+    command_t cmd;
+
+    while(1){
+        memset(&cmd, 0, sizeof(command_t));
+        recv(pTask->user_cfd, &cmd, sizeof(command_t), MSG_WAITALL);
+        //客户端关闭连接
+        if(0 == ret){
+            printf("[client:%s]close the connection.\n", pTask->user_ip);
+            close(pTask->user_cfd);
+            break;
+        }
+        if(0 == strcmp(cmd.cmd_content, "ls")){
+            printf("ls\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "cp")){
+            printf("cp\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "tree")){
+            printf("tree\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "mkdir")){
+            printf("mkdir\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "rm")){
+            printf("rm\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "mv")){
+            printf("mv\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "pwd")){
+            printf("pwd\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "cd")){
+            printf("cd\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "exit")){
+            printf("exit\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "download")){
+            printf("download\n");
+        }
+        else if(0 == strcmp(cmd.cmd_content, "upload")){
+            printf("upload\n");
+        }
+        else{
+            printf("error\n");
+        }
+        send(pTask->user_cfd, &ret, 4, 0);
+    }
 }
