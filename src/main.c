@@ -1,10 +1,30 @@
-#include "../head/head.h"
+#include "../head/func.h"
 
-//线程池的数量
-#define PTHREAD_NUM 20
+int out_pipe[2];
+
+void sigfunc(int signum){
+    printf("sig = %d is coming\n", signum);
+    write(out_pipe[1], "1", 1);
+}
 
 int main()
 {
+    signal(10, sigfunc);
+    pipe(out_pipe);
+
+    if(fork()){
+        //主进程关闭读端
+        close(out_pipe[0]);
+
+        //等待子进程的退出然后退出
+        wait(NULL);
+        printf("main out\n");
+        exit(0);
+    }
+
+    //子进程关闭写端
+    close(out_pipe[1]);
+
     int ret = 0;
 
     //创建进程池结构体，不是指针！
@@ -27,6 +47,8 @@ int main()
     int epoll_fd = epoll_create(1);
     ret = EpollAddFd(epoll_fd, sfd);
     ERROR_CHECK(ret, -1, "EpollAddFd");
+    ret = EpollAddFd(epoll_fd, out_pipe[0]);
+    ERROR_CHECK(ret, -1, "EpollAddFd");
 
     //epoll结构体，存放就绪文件描述符
     struct epoll_event evs[2];
@@ -40,6 +62,27 @@ int main()
         int ready_num = epoll_wait(epoll_fd, evs, 2, -1);
 
         for(int i = 0; i < ready_num; ++i){
+
+            if(evs[i].data.fd == out_pipe[0]){
+                
+                //修改任务队列中的退出标号为1
+                pthread_mutex_lock(&pool.task_queue.queue_mutex);
+                pool.task_queue.exit_flag = 1;
+                pthread_mutex_unlock(&pool.task_queue.queue_mutex);
+
+                //激发全部条件变量
+                ret = pthread_cond_broadcast(&pool.task_queue.queue_cond);
+                THREAD_ERROR_CHECK(ret, "pthread_cond_broadcast");
+
+                //等待线程退出
+                for(int j = 0; j < PTHREAD_NUM; ++j){
+                    pthread_join(pool.pThread_id[j], NULL);
+                }
+
+                printf("child process exit\n");
+                //子进程退出
+                exit(0);
+            }
 
             if(evs[i].data.fd == sfd){
 
@@ -55,8 +98,8 @@ int main()
                 pTask_node_t task = (pTask_node_t)calloc(1, sizeof(task_node_t));
 
                 //添加任务节点
-                task->cfd = new_fd;
-                strcpy(task->ip, inet_ntoa(addr_client.sin_addr));
+                task->user_cfd = new_fd;
+                strcpy(task->user_ip, inet_ntoa(addr_client.sin_addr));
 
                 //上锁互斥访问任务队列
                 pthread_mutex_lock(&pool.task_queue.queue_mutex);

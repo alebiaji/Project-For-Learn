@@ -1,4 +1,4 @@
-#include "../head/head.h"
+#include "../head/func.h"
 
 //void型的线程清理函数!
 void clean_func(void *p){

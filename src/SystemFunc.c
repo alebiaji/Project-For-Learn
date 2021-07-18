@@ -1,4 +1,4 @@
-#include "../head/head.h"
+#include "../head/func.h"
 
 //返回一个用于tcp通信的套接字
 socket_fd TcpInit(){
@@ -30,4 +30,27 @@ socket_fd TcpInit(){
     ERROR_CHECK(ret, -1, "ret");
 
     return sfd;
+}
+
+int EpollAddFd(int epoll_fd, int fd){
+
+    int ret = 0;
+    struct epoll_event events;
+    memset(&events, 0, sizeof(events));
+
+    events.events = EPOLLIN;
+    events.data.fd = fd;
+
+    ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &events);
+    ERROR_CHECK(ret, -1, "epoll_ctl");
+
+    return 0;
+}
+
+/**
+ * 参数1：用于写log文件的文件描述符
+ * 参数2：写入的语句
+*/
+void WriteLog(log_fd fd, const char *buf){
+    write(fd, buf, sizeof(buf));
 }

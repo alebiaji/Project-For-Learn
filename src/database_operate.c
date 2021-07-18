@@ -1,4 +1,4 @@
-#include "../head/head.h"
+#include "../head/func.h"
 
 /**
  * 返回值：成功返回MySQL连接，失败返回(MYSQL *)-1

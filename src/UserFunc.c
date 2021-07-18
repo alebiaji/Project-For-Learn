@@ -1,4 +1,4 @@
-#include "../head/head.h"
+#include "../head/func.h"
 
 int UserFunc(pTask_node_t pTask){
 
@@ -17,33 +17,47 @@ int UserFunc(pTask_node_t pTask){
 
         memset(&acc, 0, sizeof(account_t));
         
-        printf("[client:%s]waiting for choice.\n", pTask->ip);
+        printf("[client:%s]waiting for choice.\n", pTask->user_ip);
 
-        //接收用户发送过来的用户名，用户密码
-        ret = recv(pTask->cfd, &acc, sizeof(account_t), MSG_WAITALL);
-        
+        //1.接收用户发送过来的用户名，用户密码，功能选择
+        ret = recv(pTask->user_cfd, &acc, sizeof(account_t), MSG_WAITALL);
+
         if(0 == ret){
-            printf("[client:%s]close the connection.\n", pTask->ip);
-            close(pTask->cfd);
+            printf("[client:%s]close the connection.\n", pTask->user_ip);
+            close(pTask->user_cfd);
             return -1;
         }
 
-        printf("[client:%s]name = %s, passwd = %s.\n", pTask->ip, acc.acc_name, acc.acc_passwd);
+        printf("[client:%s]name = %s, passwd = %s.\n", \
+            pTask->user_ip, acc.acc_name, acc.acc_passwd);
 
-        //登录或者注册，将结果发送给客户端
+        //2.登录或者注册，将结果发送给客户端
         if(1 == acc.opt_flag){
-            printf("client login\n");
+            printf("[client:%s]login.\n", pTask->user_ip);
             ret = Login(&acc, conn);
         }
         else if(0 == acc.opt_flag){
-            printf("client signin\n");
+            printf("[client:%s]signin.\n", pTask->user_ip);
             ret = SignIn(&acc, conn);
-            //注册成功后再登录
+
+            //注册成功后，调用登录接口获得用户id
             if(0 == ret){
                 ret = Login(&acc, conn);
             }
         }
-        send(pTask->cfd, &ret, 4, 0);
+        send(pTask->user_cfd, &ret, 4, 0);
+
+        //3.登录或者注册失败，继续等待接收客户端请求
+        if(-1 == ret){
+            continue;
+        }
+        //4.登录成功，进入命令分析模块
+        else{
+            pTask->user_id = ret;
+            pTask->user_conn = conn;
+            printf("[client:%s]user id = %d.\n", pTask->user_ip, pTask->user_id);
+            CmdAnalyse();
+        }
 
     }
 
@@ -67,7 +81,8 @@ int Login(pAccount_t pAcc, MYSQL *db_connect){
     char **res = NULL;
 
     //设置查询语句
-    sprintf(query, "%s %s %s %s %s", "select id", "from user where username =", pAcc->acc_name, "and password =", pAcc->acc_passwd);
+    sprintf(query, "%s %s %s %s %s", "select id", "from user where username =", \
+        pAcc->acc_name, "and password =", pAcc->acc_passwd);
     int ret = database_operate(db_connect, query, &res);
     
     //查找失败，返回-1
@@ -114,9 +129,20 @@ int SignIn(pAccount_t pAcc, MYSQL *db_connect){
 
         //设置插入语句
         memset(query, 0, sizeof(query));
-        sprintf(query, "%s %s %s %s %s %s %s", "insert into user ( username , password , pwd ) values (", pAcc->acc_name, ",", pAcc->acc_passwd, ",", pAcc->acc_name, ")");
+        sprintf(query, "%s %s %s %s %s %s %s", "insert into user ( username , password , pwd ) \
+            values (", pAcc->acc_name, ",", pAcc->acc_passwd, ",", pAcc->acc_name, ")");
         database_operate(db_connect, query, NULL);
         printf("[SIGNIN]:SUCCESS\n");
         return 0;
     }
+}
+
+/**
+ * 参数1：用于通信文件的描述符
+ * 参数2：写入log文件的文件描述符
+ * 参数3：用户id
+ * 参数4：数据库的连接
+*/
+int CmdAnalyse(){
+    while(1);
 }

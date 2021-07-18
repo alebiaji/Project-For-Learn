@@ -1,10 +1,10 @@
-#include "../head/head.h"
+#include "../head/func.h"
 
 /**
  * 功能：初始化任务队列
  * 参数：任务队列
  */
-int TaskQueInit(pTask_queue_t pQue){
+int TaskQueueInit(pTask_queue_t pQue){
 
     int ret = 0;
     pQue->queue_len = 0;
@@ -24,7 +24,7 @@ int TaskQueInit(pTask_queue_t pQue){
  * 参数2：任务节点
  * 返回值：返回0，不会失败
  */
-int InsertTaskQue(pTask_queue_t pQue, pTask_node_t pTaskNode){
+int InsertTaskQueue(pTask_queue_t pQue, pTask_node_t pTaskNode){
     
     //任务队列中没有任务节点时，头尾指针指向新加入的任务节点
     if(0 == pQue->queue_len){
