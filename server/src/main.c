@@ -32,6 +32,8 @@ int main()
 
     int ret = 0;
 
+    //config_fd fd = open(("", O_WRONLY);
+
     //创建进程池结构体，不是指针！
     thread_pool_t pool;
     memset(&pool, 0, sizeof(thread_pool_t));

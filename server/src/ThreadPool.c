@@ -47,7 +47,6 @@ void *thread_func(void *p){
 
         //取节点成功，用文件描述符发送文件，任务完成释放节点资源，置为空指针
         if(1 == get_success){
-            printf("get task!\n");
             UserFunc(pTask);
             free(pTask);
             pTask = NULL;

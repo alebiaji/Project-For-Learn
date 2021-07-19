@@ -7,6 +7,8 @@ typedef int socket_fd;
 typedef int client_fd;
 //服务端打开的用于存储log文件的文件描述符
 typedef int log_fd;
+//服务端打开的用于存储config文件的文件描述符
+typedef int config_fd;
 
 //数据传输结构体
 typedef struct{
@@ -18,7 +20,7 @@ typedef struct{
 
 //用户登录、注册结构体
 typedef struct account_s{
-    //1是登录，0是注册
+    //LOGIN是登录，SIGNIN是注册
     int opt_flag;
     //用户名
     char acc_name[20];
@@ -37,7 +39,7 @@ typedef struct command_s{
     //参数2
     char cmd_arg2[20];
     //参数3
-    char cmd_arg3[20];
+    char cmd_arg3[40];
 }command_t, *pCommand_t;
 
 //任务节点：存储一个用户的各种信息

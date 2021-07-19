@@ -1,7 +1,7 @@
 #include "../head/func.h"
 
 /**
- * 用户
+ * 用户功能
 */
 int UserFunc(pTask_node_t pTask){
 
@@ -21,6 +21,11 @@ int UserFunc(pTask_node_t pTask){
     sprintf(log_name, "./log/%s.log", timestamp);
     log_fd lfd= open(log_name, O_WRONLY | O_CREAT | O_APPEND, 0666);
 
+    GetTimeStamp(timestamp, 1);
+    sprintf(log_content, "[%s %s]get task, begin the connection.\n", timestamp, pTask->user_ip);
+    ret = WriteLog(lfd, log_content);
+    ERROR_CHECK(ret, -1, "WriteLog");
+
     //用栈空间创建用户信息结构体
     account_t acc;
 
@@ -39,35 +44,31 @@ int UserFunc(pTask_node_t pTask){
         //客户端关闭连接
         if(0 == ret){
             GetTimeStamp(timestamp, 1);
-            sprintf(log_content, "[%s %s]close the connection.\n", timestamp, pTask->user_ip);
+            sprintf(log_content, "[%s %s]close the connection, task over.\n", timestamp, pTask->user_ip);
             ret = WriteLog(lfd, log_content);
             ERROR_CHECK(ret, -1, "WriteLog");
             break;
         }
 
-        //printf("[client:%s]name = %s, passwd = %s.\n", \
+        printf("[client:%s]name = %s, passwd = %s.\n", \
             pTask->user_ip, acc.acc_name, acc.acc_passwd);
 
-        //2.登录或者注册，将结果发送给客户端
-        if(1 == acc.opt_flag){
+        //2.登录或者注册
+        if(LOGIN == acc.opt_flag){
             GetTimeStamp(timestamp, 1);
             sprintf(log_content, "[%s %s]login.\n", timestamp, pTask->user_ip);
             ret = WriteLog(lfd, log_content);
             ERROR_CHECK(ret, -1, "WriteLog");
             ret = Login(&acc, conn);
         }
-        else if(0 == acc.opt_flag){
+        else if(SIGNIN == acc.opt_flag){
             GetTimeStamp(timestamp, 1);
             sprintf(log_content, "[%s %s]signin.\n", timestamp, pTask->user_ip);
             ret = WriteLog(lfd, log_content);
             ERROR_CHECK(ret, -1, "WriteLog");
-            ret = SignIn(&acc, conn);
-
-            //注册成功后，调用登录接口获得用户id
-            if(0 == ret){
-                ret = Login(&acc, conn);
-            }
+            ret = SignIn(&acc, conn, pTask->user_cfd);
         }
+        printf("ret = %d\n", ret);
         send(pTask->user_cfd, &ret, 4, 0);
 
         //3.登录或者注册失败，继续等待接收客户端请求
@@ -89,21 +90,16 @@ int UserFunc(pTask_node_t pTask){
             sprintf(log_content, "[%s %s]user_id = %d login success.\n", timestamp, pTask->user_ip, pTask->user_id);
             ret = WriteLog(lfd, log_content);
             ERROR_CHECK(ret, -1, "WriteLog");
-            ret = CmdAnalyse(pTask, timestamp);
-            if(-1 == ret){
-                char query[100] = { 0 };
-                sprintf(query, "%s %s %s %d", "update user set pwd = ", acc.acc_name, "where id =", pTask->user_id);
-                database_operate(pTask->user_conn, query, NULL);
-                break;
-            }
+
+            //进入命令交互界面
+            CmdAnalyse(pTask, timestamp);
+            char query[100] = { 0 };
+            sprintf(query, "update user set pwd = '%s' where id = %d", acc.acc_name, pTask->user_id);
+            database_operate(pTask->user_conn, query, NULL);
+            break;
         }
 
     }
-    GetTimeStamp(timestamp, 1);
-    sprintf(log_content, "[%s %s]task over.\n", timestamp, pTask->user_ip);
-    ret = WriteLog(lfd, log_content);
-    ERROR_CHECK(ret, -1, "WriteLog");
-    //printf("Task over\n");
     //关闭文件描述符和数据库连接
     close(pTask->user_cfd);
     close(pTask->user_lfd);
@@ -128,12 +124,11 @@ int Login(pAccount_t pAcc, MYSQL *db_connect){
     char **res = NULL;
 
     //设置查询语句
-    sprintf(query, "%s %s %s %s %s", "select id", "from user where username =", \
-        pAcc->acc_name, "and password =", pAcc->acc_passwd);
+    sprintf(query, "select id from user where username = '%s' and password = '%s'", pAcc->acc_name, pAcc->acc_passwd);
     int ret = database_operate(db_connect, query, &res);
     
     //查找失败，返回-1
-    if(ret < 1){
+    if(0 == ret){
         return -1;
     }
 
@@ -151,9 +146,9 @@ int Login(pAccount_t pAcc, MYSQL *db_connect){
  * 在数据库中搜索是否存在用户名
  * 如果存在acc->flag = -1表示注册失败
  * 如果不存在在数据库中新增用户数据
- * 给客户端发送一个int型的数据，成功返回0，失败返回-1
+ * 给客户端发送一个int型的数据，成功用户id，失败返回-1
  */
-int SignIn(pAccount_t pAcc, MYSQL *db_connect){
+int SignIn(pAccount_t pAcc, MYSQL *db_connect, client_fd fd){
 
     int ret = 0;
 
@@ -161,7 +156,7 @@ int SignIn(pAccount_t pAcc, MYSQL *db_connect){
     char query[200] = { 0 };
 
     //设置查询语句
-    sprintf(query, "%s %s %s", "select id", "from user where username =", pAcc->acc_name);
+    sprintf(query, "select id from user where username = '%s'", pAcc->acc_name);
     ret = database_operate(db_connect, query, NULL);
     
     //用户名存在，注册失败，返回-1
@@ -170,15 +165,29 @@ int SignIn(pAccount_t pAcc, MYSQL *db_connect){
     }
     //用户名不存在，注册用户
     else{
-        //char salt[STR_LEN + 1] = { 0 };
-        //GetRandomStr(salt);
+        char salt[STR_LEN + 1] = { 0 };
+        GetRandomStr(salt);
         //设置插入语句
         memset(query, 0, sizeof(query));
-        sprintf(query, "%s %s %s %s %s %s %s", "insert into user ( username , salt , pwd ) \
-            values (", pAcc->acc_name, ",", pAcc->acc_passwd, ",", pAcc->acc_name, ")");
-        database_operate(db_connect, query, NULL);
+        sprintf(query, "insert into user ( username , salt , password, pwd ) values ( '%s' , '%s' , '%s' , '%s' )", pAcc->acc_name, salt, pAcc->acc_passwd, pAcc->acc_name);
+        //printf("%s\n", query);
+        ret = database_operate(db_connect, query, NULL);
+        //strcpy(pAcc->acc_passwd, salt);
+
+        //send(fd, )
+
+        //用户注册成功，直接给他登录
+        if(ret > 0){
+            //登录系统并创建虚拟文件系统用户根目录
+            int user_id = Login(pAcc, db_connect);
+            memset(query, 0, sizeof(query));
+            sprintf(query, "insert into file ( father_id, file_name , type , user_id , file_md5 , file_size ) values ( 0 , '%s' , 'd' , %d , 0 , 0)", pAcc->acc_name, user_id);
+            //printf("%s\n", query);
+            database_operate(db_connect, query, NULL);
+            return user_id;
+        }
         
-        return 0;
+        return ret;
     }
 }
 
@@ -190,67 +199,90 @@ int SignIn(pAccount_t pAcc, MYSQL *db_connect){
 */
 int CmdAnalyse(pTask_node_t pTask, char *timestamp){
 
-    int ret = 1;
+    printf("CmdAnalyse\n");
+
+    int ret;
     command_t cmd;
+    char func_ret_buf[4096] = { 0 };
     char log_content[200] = { 0 };
-    int father_id = 0;
+    char query[100] = { 0 };
+    int father_id = getpwd(pTask->user_conn, pTask->user_id, func_ret_buf);
 
     while(1){
+
         memset(&cmd, 0, sizeof(command_t));
         ret = recv(pTask->user_cfd, &cmd, sizeof(command_t), MSG_WAITALL);
+
         //客户端关闭连接
         if(0 == ret){
             GetTimeStamp(timestamp, 1);
-            sprintf(log_content, "[%s %s]user_id = %d close the connection.\n", timestamp, pTask->user_ip, pTask->user_id);
+            sprintf(log_content, "[%s %s]user_id = %d close the connection, task over.\n", timestamp, pTask->user_ip, pTask->user_id);
             ret = WriteLog(pTask->user_lfd, log_content);
             ERROR_CHECK(ret, -1, "WriteLog");
             return -1;
         }
+
         GetTimeStamp(timestamp, 1);
         sprintf(log_content, "[%s %s]user_id = %d send cmd, args = %d, cmd = %s %s %s %s\n",\
             timestamp, pTask->user_ip, pTask->user_id, cmd.cmd_args, cmd.cmd_content, cmd.cmd_arg1, cmd.cmd_arg2, cmd.cmd_arg3);
         ret = WriteLog(pTask->user_lfd, log_content);
         ERROR_CHECK(ret, -1, "WriteLog");
+
+        //接收命令
         if(0 == strcmp(cmd.cmd_content, "ls")){
-            ret = 1;
-            printf("ls\n");
+            ret = getls(pTask->user_conn, pTask->user_id, cmd.cmd_arg1, func_ret_buf);
+            printf("%s\n", func_ret_buf);
         }
         else if(0 == strcmp(cmd.cmd_content, "cp")){
             ret = 1;
             printf("cp\n");
         }
         else if(0 == strcmp(cmd.cmd_content, "tree")){
-            ret = 1;
-            printf("tree\n");
+            ret = tree(pTask->user_conn, pTask->user_id, cmd.cmd_arg1, func_ret_buf);
+            printf("%s\n", func_ret_buf);
         }
         else if(0 == strcmp(cmd.cmd_content, "mkdir")){
             ret = 1;
             printf("mkdir\n");
         }
         else if(0 == strcmp(cmd.cmd_content, "rm")){
-            ret = 1;
-            printf("rm\n");
+            ret = rm(pTask->user_conn, pTask->user_id, cmd.cmd_arg1);
+            if(0 == ret){
+                printf("rm success\n");
+            }
         }
         else if(0 == strcmp(cmd.cmd_content, "mv")){
-            ret = 1;
-            printf("mv\n");
+            ret = mv(pTask->user_conn, pTask->user_id, cmd.cmd_arg1, cmd.cmd_arg2);
+            if(0 == ret){
+                printf("rm success\n");
+            }
         }
         else if(0 == strcmp(cmd.cmd_content, "pwd")){
-            ret = 1;
-            printf("pwd\n");
+            ret = getpwd(pTask->user_conn, pTask->user_id, func_ret_buf);
+            if(-1 != ret){
+                father_id = ret;
+            }
+            printf("%s\n", func_ret_buf);
         }
         else if(0 == strcmp(cmd.cmd_content, "cd")){
-            ret = 1;
-            printf("cd\n");
+            ret = changeDir(pTask->user_conn, pTask->user_id, cmd.cmd_arg1);
+            if(-1 != ret){
+                father_id = ret;
+            }
+            printf("%s\n", func_ret_buf);
         }
         else if(0 == strcmp(cmd.cmd_content, "download")){
-            
-            ret = 1;
-            printf("download\n");
+            ret = user_download(pTask->user_conn, pTask->user_cfd, father_id, cmd.cmd_arg1, atoi(cmd.cmd_arg2));
+            if(0 == ret){
+                printf("download success\n");
+            }
         }
         else if(0 == strcmp(cmd.cmd_content, "upload")){
-            ret = 1;
-            printf("upload\n");
+            ret = user_upload(pTask->user_conn, pTask->user_cfd, father_id, cmd.cmd_arg1, cmd.cmd_arg3, atoi(cmd.cmd_arg2), pTask->user_id);
+            if(0 == ret){
+                printf("upload success\n");
+            }
+            
         }
         else if(0 == strcmp(cmd.cmd_content, "exit")){
             ret = 1;

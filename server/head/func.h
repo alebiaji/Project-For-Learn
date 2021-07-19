@@ -5,6 +5,8 @@
 #include "define.h"
 #include "struct.h"
 #include "database.h"
+#include "command.h"
+#include "fileTrans.h"
 
 int TaskQueueInit(pTask_queue_t pQueue);
 int InsertTaskQueue(pTask_queue_t pQueue, pTask_node_t Node);
@@ -17,7 +19,7 @@ socket_fd TcpInit();
 int EpollAddFd(int epoll_fd, int fd);
 
 int Login(pAccount_t acc, MYSQL *db_connect);
-int SignIn(pAccount_t acc, MYSQL *db_connect);
+int SignIn(pAccount_t acc, MYSQL *db_connect, client_fd fd);
 int UserFunc(pTask_node_t pTask);
 int WriteLog(log_fd fd, char *buf);
 int CmdAnalyse(pTask_node_t pTask, char *timestamp);

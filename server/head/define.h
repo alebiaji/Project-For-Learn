@@ -31,4 +31,10 @@
 //salt值字符串长度
 #define STR_LEN 10
 
+//登录操作
+#define LOGIN 1
+
+//注册操作
+#define SIGNIN 0
+
 #endif

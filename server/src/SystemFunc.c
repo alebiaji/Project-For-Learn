@@ -62,7 +62,7 @@ int EpollAddFd(int epoll_fd, int fd){
 int WriteLog(log_fd fd, char *buf){
     int ret = write(fd, buf, strlen(buf));
     ERROR_CHECK(ret, -1, "write");
-    memset(buf, 0, sizeof(buf));
+    memset(buf, 0, 100);
     return 0;
 }
 
