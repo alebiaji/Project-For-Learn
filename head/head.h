@@ -27,5 +27,6 @@
 #include <netdb.h>
 #include <pthread.h>
 #include <mysql/mysql.h>
+#include <sys/sendfile.h>
 
 #endif

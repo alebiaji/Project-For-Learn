@@ -7,9 +7,14 @@ void sigfunc(int signum){
     write(out_pipe[1], "1", 1);
 }
 
+void sigfunc_13(int signum){
+    printf("sig = %d is coming\n", signum);
+}
+
 int main()
 {
     signal(10, sigfunc);
+    signal(13, sigfunc_13);
     pipe(out_pipe);
 
     if(fork()){

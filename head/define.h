@@ -28,4 +28,7 @@
 //线程池的数量
 #define PTHREAD_NUM 20
 
+//salt值字符串长度
+#define STR_LEN 10
+
 #endif

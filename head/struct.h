@@ -8,7 +8,7 @@ typedef int client_fd;
 //服务端打开的用于存储log文件的文件描述符
 typedef int log_fd;
 
-//用于传输数据
+//数据传输结构体
 typedef struct{
     //数据长度
     int data_len;
@@ -36,6 +36,8 @@ typedef struct command_s{
     char cmd_arg1[20];
     //参数2
     char cmd_arg2[20];
+    //参数3
+    char cmd_arg3[20];
 }command_t, *pCommand_t;
 
 //任务节点：存储一个用户的各种信息
