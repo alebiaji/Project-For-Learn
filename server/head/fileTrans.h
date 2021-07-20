@@ -9,5 +9,6 @@
 
 int user_download(MYSQL *db_connect, int clientfd, int father_id, const char *filename, off_t file_offset);
 int user_upload(MYSQL *db_connect, int clientfd, int father_id, const char *filename, const char *md5, off_t filesize, int user_id);
+int get_file_size(const char *fileName, off_t fileOffset, int *clientFd, struct stat *fileStat);
 
 #endif

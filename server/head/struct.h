@@ -15,7 +15,7 @@ typedef struct{
     //数据长度
     int data_len;
     //数据内容
-    char data_buf[1000];
+    char data_buf[4096];
 }train_t;
 
 //用户登录、注册结构体
@@ -23,9 +23,9 @@ typedef struct account_s{
     //LOGIN是登录，SIGNIN是注册
     int opt_flag;
     //用户名
-    char acc_name[20];
+    char acc_name[32];
     //用户密码
-    char acc_passwd[20];
+    char acc_passwd[32];
 }account_t, *pAccount_t;
 
 //命令结构体
@@ -33,13 +33,13 @@ typedef struct command_s{
     //命令参数数量
     int cmd_args;
     //命令
-    char cmd_content[20];
+    char cmd_content[64];
     //参数1
-    char cmd_arg1[20];
+    char cmd_arg1[64];
     //参数2
-    char cmd_arg2[20];
+    char cmd_arg2[64];
     //参数3
-    char cmd_arg3[40];
+    char cmd_arg3[64];
 }command_t, *pCommand_t;
 
 //任务节点：存储一个用户的各种信息

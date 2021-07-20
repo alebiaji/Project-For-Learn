@@ -61,4 +61,19 @@ int getls_id(MYSQL* conn,int user_id,int id,int temp_id[]);
 
 //根据id获取file_name
 int getFileName(MYSQL* conn,int id,char* file_name);
+
+
+
+//夏坚强的接口函数（私用）
+int digui(MYSQL *conn, char *src, int srcid, int destid, int user_id);
+int getmd5fromid(MYSQL *conn, char *query, int qlen, int id, char *file_md5);
+int gettypefromid(MYSQL *conn, char *query, int qlen, int id, char *type);
+int getnamefromid(MYSQL *conn, char *query, int qlen, int id, char *file_name);
+int getsizefromid(MYSQL *conn, char *query, int qlen, int id, char *file_size);
+int addcountfrommad5(MYSQL *conn, char *query, int qlen, char *file_md5);
+int delcountfrommd5(MYSQL *conn, char *query, int qlen, char *file_md5);
+int detectsame(MYSQL *conn, char *query, int qlen, char *srcname, int dirid);
+int cp(MYSQL *conn, int user_id, char *src, char *dest);
+
+
 #endif

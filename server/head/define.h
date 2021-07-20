@@ -26,7 +26,7 @@
     }while(0)
 
 //线程池的数量
-#define PTHREAD_NUM 20
+#define PTHREAD_NUM 100
 
 //salt值字符串长度
 #define STR_LEN 10

@@ -62,8 +62,8 @@ int main()
     memset(evs, 0, sizeof(struct epoll_event));
 
     while(1){
-        
-        printf("wait client\n");
+
+        printf("----------------Main wait client connection----------------\n");
 
         //-1表示无条件等待
         int ready_num = epoll_wait(epoll_fd, evs, 2, -1);

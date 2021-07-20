@@ -55,24 +55,12 @@ int EpollAddFd(int epoll_fd, int fd){
 }
 
 /**
- * 返回值：成功返回0，失败返回-1
- * 参数1：用于写log文件的文件描述符
- * 参数2：写入的语句
-*/
-int WriteLog(log_fd fd, char *buf){
-    int ret = write(fd, buf, strlen(buf));
-    ERROR_CHECK(ret, -1, "write");
-    memset(buf, 0, 100);
-    return 0;
-}
-
-/**
  * 参数：传入传出参数，获得一个salt值
 */
 void GetRandomStr(char *str){
     int flag;
     srand(time(NULL));
-    for(int i = 0; i < STR_LEN - 1; ++i){
+    for(int i = 0; i < STR_LEN ; ++i){
         flag = rand()%3;
         switch(flag){
             case 0: 
@@ -109,4 +97,23 @@ void GetTimeStamp(char *str, int flag){
     }
     strcpy(str, buf);
     
+}
+
+/**
+ * 返回值：成功返回0，失败返回-1
+ * 参数1：用于写log文件的文件描述符
+ * 参数2：ip
+ * 参数3：记录语句
+*/
+int WriteLog(log_fd fd, char *ip, char *buf){
+    
+    char timestamp[20] = { 0 };
+    char log_content[100] = { 0 };
+
+    GetTimeStamp(timestamp, 1);
+    sprintf(log_content, "[%s %s]%s\n", timestamp, ip, buf);
+    int ret = write(fd, log_content, strlen(log_content));
+    ERROR_CHECK(ret, -1, "write");
+    return 0;
+
 }

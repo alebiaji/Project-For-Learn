@@ -48,12 +48,13 @@ void *thread_func(void *p){
         //取节点成功，用文件描述符发送文件，任务完成释放节点资源，置为空指针
         if(1 == get_success){
             UserFunc(pTask);
+            printf("----------------UserFunc Out----------------\n");
             free(pTask);
             pTask = NULL;
         }
 
         if(1 == pQue->exit_flag){
-            printf("thread out\n");
+            printf("----------------Thread Out----------------\n");
             //线程退出
             pthread_exit(NULL);
         }
