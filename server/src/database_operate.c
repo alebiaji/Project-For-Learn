@@ -11,10 +11,10 @@ const int KEY_LEN = 64;
 {
 	MYSQL *db_connect = NULL;
 
-	char *server = "121.36.5.233";
+	char *server = "localhost";
 	char *user = "demo";
-	char *password = "Asd404!@#";
-	char *database = "project_demo";
+	char *password = "123";
+	char *database = "demo";
 
 	//初始化
 	db_connect = mysql_init(NULL);
