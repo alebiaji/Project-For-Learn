@@ -3,6 +3,7 @@
 #include "../head/md5.h"
 #include "../head/cilent.h"
 
+
 //将命令和参数赋值给command结构体变量
 int GetCommand(pcommand_t pcommand, char *buf)
 {
@@ -89,24 +90,26 @@ int DownloadCommand(pcommand_t pcommand, int sfd)
 	//现在就可以把 这个命令 发送出去了
 	ret = send(sfd, pcommand, sizeof(command_t), 0);
 	ERROR_CHECK(ret, -1, "send_command");
+	// printf("我发给对方的我这边的这个文件的大小recvsize = %d\n", atoi(pcommand->c_args2));
 
-	ret = recv(sfd, &filesize, sizeof(off_t), 0);
+	ret = recv(sfd, &filesize, sizeof(off_t), MSG_WAITALL);
 	ERROR_CHECK(ret, -1, "recv_filesize");
 	//先接收off_t个字节，接收文件的大小
 
-	// printf("filesize = %ld\n", filesize);
-
+	printf("file size = %ld\n", filesize);
+	printf("need transport size = %ld\n", filesize - fileinfo.st_size);
 	while (recvsize < filesize)
 	{ //已经接收到的字节 比 文件总字节 小，就循环
-
+		memset(buf, 0, sizeof(buf));
 		ret = recv(sfd, buf, 4095, 0);
+
 		ERROR_CHECK(ret, -1, "recv_content");
-		ret = write(fd, buf, ret); //ret 本次接收到的字节，将接收到的数据写入文件当中
+		ret = write(fd, buf, ret); // ret 本次接收到的字节，将接收到的数据写入文件当中		
 		ERROR_CHECK(ret, -1, "write");
 
-		recvsize += ret; //已经写入到文件中的字节数
+		recvsize += ret; // 已经写入到文件中的字节数
 
-		if (recvsize % 102400 == 0) //每写入100字节 就打印一次进度
+		if (recvsize % 102400 == 0) // 每写入100字节 就打印一次进度
 		{
 			float rate = (float)recvsize / filesize * 100;
 			printf("rate = %5.2f%%\r", rate);
@@ -117,29 +120,31 @@ int DownloadCommand(pcommand_t pcommand, int sfd)
 	if (recvsize == filesize)
 	{ //判断，如果退出接收时，已经写入的大小 = 文件大小，说明下载完成
 		printf("download complished\n");
-		close(fd);
-		return 0;
 	}
+	else
+	{
+		printf("我这边的文件大小，和，文件总大小 不匹配\n");
+	}
+	close(fd);
+	return 1;
 }
 
 //上传命令 执行的 函数
 int UploadCommand(pcommand_t pcommand, int sfd)
 {
-
+	printf("执行上传命令\n");
 	off_t sendsize = 0;
 	int fd = 0;
 	int ret = 0;
 
 	//获得要上传文件的md5码，并赋值给command结构体变量
-	char *file_path;
-	strcpy(file_path, pcommand->c_args1);
+	char file_path[64];
+	sprintf(file_path, "%s", pcommand->c_args1);
 	char md5_str[MD5_STR_LEN + 1];
 	ret = Compute_file_md5(file_path, md5_str);
-	if (0 == ret)
-	{
-		printf("[file - %s] md5 value:\n", file_path);
-		printf("%s\n", md5_str);
-	}
+	printf("[file - %s] md5 value: ", file_path);
+	printf("%s\n", md5_str);
+
 	strcpy(pcommand->c_args3, md5_str);
 	pcommand->c_argsnum += 1;
 
@@ -160,43 +165,33 @@ int UploadCommand(pcommand_t pcommand, int sfd)
 	ERROR_CHECK(ret, -1, "send_command");
 
 	//接收 服务器 发给我的 偏移量
-	ret = recv(sfd, &sendsize, sizeof(off_t), 0);
+	ret = recv(sfd, &sendsize, sizeof(off_t), MSG_WAITALL);
 	ERROR_CHECK(ret, -1, "recv_offset");
 
-	sendfile(sfd, fd, &sendsize, fileinfo.st_size); 
-	if (sendsize == fileinfo.st_size)
+	printf("file size = %ld\n", fileinfo.st_size);
+	printf("need transport size = %ld\n", fileinfo.st_size - sendsize);
+	off_t sendsize1 = sendsize;
+	off_t size = 0;
+	size = sendfile(sfd, fd, &sendsize, fileinfo.st_size);
+
+	sendsize1 += size;
+	if (sendsize1 == fileinfo.st_size)
 	{
 		printf("upload complished\n");
 		close(fd);
-		return 0;
 	}
+	else
+	{
+		printf("sendsize + size != filesize\n");
+	}
+	return 1;
 }
 
 //其他命令
 int OtherCommand(pcommand_t pcommand, int sfd)
 {
-	char buf[4096] = {0};
 	int ret = send(sfd, pcommand, sizeof(command_t), 0);
 	ERROR_CHECK(ret, -1, "send_command");
-
-	//接收就是接收一个字符串，并把这个字符串的内容打印输出
-	ret = recv(sfd, buf, 4095, 0);
-	ERROR_CHECK(ret, -1, "recv_command");
-	printf("%s\n", buf);
-
 	return 0;
 }
 
-int epolladd(int epfd, int sfd)
-{
-    struct epoll_event events;
-    memset(&events, 0, sizeof(events));
-    events.data.fd = sfd;
-    events.events = EPOLLIN;
-    //需要监视的套接字的操作是读操作
-
-    int ret = epoll_ctl(epfd, EPOLL_CTL_ADD, sfd, &events);
-    ERROR_CHECK(ret, -1, "epoll_ctl");
-
-    return 0;
-}

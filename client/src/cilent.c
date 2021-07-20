@@ -1,22 +1,10 @@
-#define _GNU_SOURCE
 #include "../head/func.h"
 #include "../head/cilent.h"
 #include "../head/md5.h"
 
-/* int exitpipe[2] = {0};  //定义一个整型数组，用来存储匿名管道的读端和写端
-void sigfunc(int signum)        
-{   //信号处理函数
-    printf("sig is coming\n");
-
-    write(exitpipe[1], &signum, 4);
-    //将捕捉到的信号，写入管道，并在进程中监听管道的读端
-} */
-
 int main(int argc, char *argv[])
 {
-    /* pipe(exitpipe);     //创建管道，用来接收信号，实现文件传输的暂停
-    signal(2, sigfunc);   //捕捉信号，并执行信号处理函数
- */
+
     ARGS_CHECK(argc, 3);
 
     //与服务器进行连接
@@ -33,28 +21,36 @@ int main(int argc, char *argv[])
     //用户登录或注册，进入文件传输系统
     UserLogin(sfd);
 
-
-   /*  int epfd = epoll_create(1); //创建epoll文件对象
-    epolladd(epfd, exitpipe[0]);    //将 传输信号的管道的读端，加入监听 */
-
-    //创建一些必须的变量
-    /* struct epoll_event eves[1];
-    memset(eves, 0, sizeof(eves[0]));
-    int readynum = 0; */
     char buf[4096] = {0};
+    char username[4096] = {0};
+    char userdir[8192] = {0};
+    result_t result;
+    memset(&result, 0, sizeof(result));
+    int recvflag = 0;
 
+    memset(&result, 0, sizeof(result));
+
+    // printf("hello\n");
+
+    //用result结构体接收，先接受4个字节的长度，在接受内容
+    ret = recv(sfd, &result.len, sizeof(result.len), MSG_WAITALL);
+    ERROR_CHECK(ret, -1, "recv_len");
+    recv(sfd, result.buf, result.len, MSG_WAITALL);
+    ERROR_CHECK(ret, -1, "recv_buf");
+    strcpy(username, result.buf);
+
+    sprintf(userdir, "%s%s%s", username, ":", "$ ");
+    memset(username, 0, sizeof(username));
 
     //循环接收 用户 输入的命令
     while (1)
     {
-        /* readynum = epoll_wait(epfd, eves, 1, -1);
-        if(eves[i].data.fd == exitpipe[0])
-        {
-            
-        } */
-
+        puts("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        printf("%s", userdir);
+        fflush(stdout);
 
         //读取用户输入的命令
+        memset(buf, 0, sizeof(buf));
         ret = read(STDIN_FILENO, buf, sizeof(buf) - 1);
         if (ret == 0)
         {
@@ -77,16 +73,81 @@ int main(int argc, char *argv[])
         {
             //如果用户输入的是 下载命令
             ret = DownloadCommand(&command, sfd);
+            //下载完成，给对方发送一个整数
+            send(sfd, &ret, 4, 0);
         }
         else if (strcmp(command.c_content, "upload") == 0)
         {
             //如果用户输入的是 上传命令
             ret = UploadCommand(&command, sfd);
+            //上传完成，接收对方发给我的一个整数
+            recv(sfd, &recvflag, 4, MSG_WAITALL);
+        }
+        else if ((strcmp(command.c_content, "ls") == 0) || (strcmp(command.c_content, "tree") == 0) || (strcmp(command.c_content, "pwd") == 0))
+        {
+            //其他类型的命令
+            OtherCommand(&command, sfd);
+
+            memset(&result, 0, sizeof(result));
+
+            //用result结构体接收，先接受4个字节的长度，在接受内容
+            ret = recv(sfd, &result.len, sizeof(result.len), MSG_WAITALL);
+            ERROR_CHECK(ret, -1, "recv_len");
+            if(result.len == 0)
+            {
+                printf("%s", userdir);
+                printf("\b \b");
+                printf("\b \b\n");
+                continue;
+            }
+            recv(sfd, result.buf, result.len, MSG_WAITALL);
+            ERROR_CHECK(ret, -1, "recv_buf");
+            puts(result.buf);
+            // fflush(stdout);
+            // printf("结果以输出\n");
+        }
+        else if (strcmp(command.c_content, "cd") == 0)
+        {
+            //其他类型的命令
+            OtherCommand(&command, sfd);
+
+            memset(&result, 0, sizeof(result));
+
+            //用result结构体接收，先接受4个字节的长度，在接受内容
+            ret = recv(sfd, &result.len, sizeof(result.len), MSG_WAITALL);
+            ERROR_CHECK(ret, -1, "recv_len");
+
+            recv(sfd, result.buf, result.len, MSG_WAITALL);
+            ERROR_CHECK(ret, -1, "recv_buf");
+
+            strcpy(username, result.buf);
+            memset(userdir, 0, sizeof(userdir));
+            sprintf(userdir, "%s%s%s", username, ":", "$ ");
+            memset(username, 0, sizeof(username));
+        }
+        else if (strcmp(command.c_content, "clear") == 0)
+        {
+            system("clear");
+        }
+        else if (strcmp(command.c_content, "exit") == 0)
+        {
+            OtherCommand(&command, sfd);
+            recv(sfd, &recvflag, 4, 0);
+            printf("bye bye\n");
+            break;
         }
         else
         {
-            //其他类型的命令
-            ret = OtherCommand(&command, sfd);
+            OtherCommand(&command, sfd);
+            recv(sfd, &recvflag, 4, MSG_WAITALL);
+            if (recvflag != -1)
+            {
+                printf("%s success\n", command.c_content);
+            }
+            else
+            {
+                printf("%s failed\n", command.c_content);
+            }
         }
     }
 

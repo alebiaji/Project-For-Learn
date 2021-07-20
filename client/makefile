@@ -6,7 +6,7 @@ BIN:=$(LIST:$(PATH_C)%.c=%)   		#BIN = "main add mul ..."
 
 
 main:$(OBJ)				#main的依赖文件是./src/main.o ....
-	gcc $^ -o $@ -lpthread 
+	gcc $^ -o $@ -lpthread -lcrypt
 
 all:$(BIN)
 $(PATH_O)%.o:$(PATH_C)%.c		#%是从$(BIN)中进行查找替换的

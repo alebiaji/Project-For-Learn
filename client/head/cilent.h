@@ -2,15 +2,18 @@
 #define __CLIENT_H__
 
 #include "func.h"
+// #define _XOPEN_SOURCE
 
 //实现用户登录与注册所需的结构体以及函数声明
 
 typedef struct account_s //保存账户名，密码
 {
     int flag; //0是注册，1是登录
-    char a_name[20];
-    char a_passwd[20];
+    char a_name[32];
+    char a_passwd[32];
 } account_t, *paccount_t;
+
+char *crypt(const char *key, const char *salt);     //根据salt加密密码
 
 int UserLogin(int sfd); //用户登录或注册
 
@@ -30,11 +33,20 @@ void HidePasswd(char pb[]); //实现隐藏密码的功能，将输入的密码�
 typedef struct command_s //保存命令和参数的结构体
 {
     int c_argsnum;      //该命令的参数的个数
-    char c_content[20]; //命令内容
-    char c_args1[20];   //参数1
-    char c_args2[20];   //参数2
-    char c_args3[20];   //参数3
+    char c_content[64]; //命令内容
+    char c_args1[64];   //参数1
+    char c_args2[64];   //参数2
+    char c_args3[64];   //参数3
 } command_t, *pcommand_t;
+
+typedef struct result_S
+{
+    int len;
+    char buf[4096];
+}result_t;
+
+
+int Getbuf(char *buf);
 
 int GetCommand(pcommand_t pcommand, char *buf); //将命令和参数赋值给command结构体变量
 
