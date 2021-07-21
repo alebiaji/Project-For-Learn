@@ -11,45 +11,6 @@ MYSQL *database_connect(char *server, char *user, char *password, char *database
 {
 	MYSQL *db_connect = NULL;
 
-<<<<<<< HEAD
-=======
-	char *server = "localhost";
-	char *user = "demo";
-	char *password = "123";
-	char *database = "demo";
-
-	//初始化
-	db_connect = mysql_init(NULL);
-	if (db_connect == NULL)
-	{
-		printf("init\n");
-		return (MYSQL *)-1;
-	}
-
-	//连接数据库，看连接是否成功，只有成功才能进行后面的操作
-	if (!mysql_real_connect(db_connect, server, user, password, database, 0, NULL, 0))
-	{
-		printf("real_connect\n");
-		return (MYSQL *)-1;
-	}
-	else{
-
-		return db_connect;
-	}
-	
-}
-*/
-
-MYSQL *database_connect()
-{
-	MYSQL *db_connect = NULL;
-
-	char *server = "121.36.5.233";
-	char *user = "demo";
-	char *password = "Asd404!@#";
-	char *database = "project";
-
->>>>>>> d607742ce296c28fcd924abc89485b1774106126
 	//初始化
 	db_connect = mysql_init(NULL);
 	if (db_connect == NULL)
