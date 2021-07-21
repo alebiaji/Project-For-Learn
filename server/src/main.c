@@ -7,20 +7,9 @@ void sigfunc(int signum){
     write(out_pipe[1], "1", 1);
 }
 
-void sigfunc_13(int signum){
-    printf("sig = %d is coming\n", signum);
-}
-
 int main()
 {
-    char ip[16] = { 0 }; 
-    int port = 0;
-    FILE *fp = fopen("./config/ip.ini", "r");
-    fscanf(fp, "ip = %s port = %d", ip, &port);
-    fclose(fp);
-
     signal(10, sigfunc);
-    signal(13, sigfunc_13);
     pipe(out_pipe);
 
     if(fork()){
@@ -32,31 +21,36 @@ int main()
         printf("main out\n");
         exit(0);
     }
-
+    
     //子进程关闭写端
     close(out_pipe[1]);
 
     int ret = 0;
 
-    //config_fd fd = open(("", O_WRONLY);
+    //读取ip配置文件
+    char ip[16] = { 0 }; 
+    int port = 0;
+    FILE *fp = fopen("./config/ip.ini", "r");
+    fscanf(fp, "ip = %s port = %d", ip, &port);
+    fclose(fp);
 
     //创建进程池结构体，不是指针！
     thread_pool_t pool;
     memset(&pool, 0, sizeof(thread_pool_t));
 
-    //1.初始化线程池，创建pthread_num个线程空间，创建任务队列
+    //初始化线程池，创建pthread_num个线程空间，创建任务队列
     ret = ThreadPoolInit(&pool, PTHREAD_NUM);
     THREAD_ERROR_CHECK(ret, "ThreadPoolInit");
 
-    //2.开启线程池，创建线程，接收任务
+    //开启线程池，创建线程，接收任务
     ret = ThreadPoolCreate(&pool);
     THREAD_ERROR_CHECK(ret, "ThreadPoolCreate");
 
-    //3.创建Tcp套接字监听连接
+    //创建Tcp套接字监听连接
     socket_fd sfd = TcpInit(ip, port);
     ERROR_CHECK(ret, -1, "TcpInit");
 
-    //4.创建epoll，参数只要大于0就行，并将需要监听的文件描述符添加到epoll中
+    //创建epoll，参数只要大于0就行，并将需要监听的文件描述符添加到epoll中
     int epoll_fd = epoll_create(1);
     ret = EpollAddFd(epoll_fd, sfd);
     ERROR_CHECK(ret, -1, "EpollAddFd");
@@ -69,13 +63,12 @@ int main()
 
     while(1){
 
-        printf("----------------Main wait client connection----------------\n");
-
         //-1表示无条件等待
         int ready_num = epoll_wait(epoll_fd, evs, 2, -1);
 
         for(int i = 0; i < ready_num; ++i){
 
+            //收到退出信号
             if(evs[i].data.fd == out_pipe[0]){
                 
                 //修改任务队列中的退出标号为1
@@ -99,6 +92,8 @@ int main()
 
             if(evs[i].data.fd == sfd){
 
+                printf("client coming\n");
+
                 //创建结构体存储对端地址和端口
                 struct sockaddr_in addr_client;
                 socklen_t len = sizeof(struct sockaddr_in);
@@ -111,7 +106,7 @@ int main()
                 //在堆空间申请任务
                 pTask_node_t pTask = (pTask_node_t)calloc(1, sizeof(task_node_t));
 
-                //添加任务节点
+                //添加客户端信息
                 pTask->user_cfd = new_fd;
                 strcpy(pTask->user_ip, inet_ntoa(addr_client.sin_addr));
 

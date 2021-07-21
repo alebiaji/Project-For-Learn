@@ -1,14 +1,14 @@
 #include "../head/func.h"
 
-#define BIG_SIZE 104857600  //100M，大文件阈
-#define QUERY_LEN 256       //SQL语句字符串长度
-#define REAL_NAME_LEN 64    //真实文件名字符串长度
-#define BUF_LEN 4096        //传输buf大小
+#define BIG_SIZE 104857600 //100M，大文件阈
+#define QUERY_LEN 256      //SQL语句字符串长度
+#define REAL_NAME_LEN 64   //真实文件名字符串长度
+#define BUF_LEN 4096       //传输buf大小
 #define NET_DISK "./file/" //真实文件存储位置
 
-int split_path_name(char *path,int user_id,MYSQL *conn,char *filename)
+int split_path_name(char *path, int user_id, MYSQL *conn, char *filename)
 {
-    printf("file path =%s\n",path);
+    printf("file path =%s\n", path);
     int length = 0;
     int length_path = strlen(path);
     char save_ptr[20][20] = {0};
@@ -16,8 +16,8 @@ int split_path_name(char *path,int user_id,MYSQL *conn,char *filename)
     //path是输入的路径参数
     myStrTok(path, save_ptr, &length);
 
-    strcpy(filename,save_ptr[length - 1]);
-    printf("filename =%s\n",filename);
+    strcpy(filename, save_ptr[length - 1]);
+    printf("filename =%s\n", filename);
     //复制除了名字外其他的字符串
     if (length != 1)
     {
@@ -28,7 +28,7 @@ int split_path_name(char *path,int user_id,MYSQL *conn,char *filename)
     {
         strcpy(temp_path, ".");
     }
-    char buf[128]={0};
+    char buf[128] = {0};
     getPath(conn, user_id, temp_path, buf);
     //printf("buf:%s\n",buf);
 
@@ -68,10 +68,10 @@ int get_file_size(const char *fileName, off_t fileOffset, int *clientFd, struct 
 */
 int user_download(MYSQL *db_connect, int clientfd, int user_id, char *filePath, off_t file_offset)
 {
-    char filename[64]={0};
-    int father_id = split_path_name(filePath,user_id,db_connect,filename);
-    printf("filename = %s\n",filename);
-    printf("father id = %d \n",father_id);
+    char filename[64] = {0};
+    int father_id = split_path_name(filePath, user_id, db_connect, filename);
+    printf("filename = %s\n", filename);
+    printf("father id = %d \n", father_id);
 
     //SQL查询语句
     char query[QUERY_LEN] = {0};
@@ -86,7 +86,7 @@ int user_download(MYSQL *db_connect, int clientfd, int user_id, char *filePath, 
     {
         printf("file is not exist\n");
         off_t notExist = DOWNLOAD_NOT_EXIST_FILE;
-        send(clientfd,&notExist,sizeof(off_t),0);
+        send(clientfd, &notExist, sizeof(off_t), 0);
         return DOWNLOAD_NOT_EXIST_FILE;
     }
 
@@ -132,20 +132,40 @@ int user_download(MYSQL *db_connect, int clientfd, int user_id, char *filePath, 
 //用户上传
 int user_upload(MYSQL *db_connect, int clientfd, int father_id, const char *filename, const char *md5, off_t filesize, int user_id)
 {
-    char query[QUERY_LEN] = {0};
-    sprintf(query,"select user_id from file where father_id = %d and file_name = '%s'",father_id,filename);
-    char **result = NULL;
-    int ret = database_operate(db_connect,query,&result);
-    if(ret != 0 && (atoi(result[0]) == user_id))
-    {
-        printf("client upload existed file\n");
-        off_t Existing = UPLOAD_EXISTING_FILE;
-        send(clientfd,&Existing,sizeof(off_t),0);
-        return UPLOAD_EXISTING_FILE;
-    }
-    
-    //组合真实文件路径，打开\创建真实文件，获取真实文件大小，向客户端发送文件大小
+
     struct stat *fileStat = (struct stat *)calloc(1, sizeof(struct stat));
+
+    char query[QUERY_LEN] = {0};
+    sprintf(query, "select user_id from file where father_id = %d and file_name = '%s'", father_id, filename);
+    char **result = NULL;
+    int ret = database_operate(db_connect, query, &result);
+    if (ret != 0 && (atoi(result[0]) == user_id))
+    {
+        //组合真实文件路径
+        char real_filename[REAL_NAME_LEN] = NET_DISK;
+        sprintf(real_filename, "%s%s", real_filename, md5);
+        printf("filename=%s\n", real_filename);
+
+        //打开真实文件
+        int checkFd = open(real_filename, O_RDWR | O_CREAT, 0666);
+        ERROR_CHECK(checkFd, -1, "open");
+
+        //获取真实文件大小
+        fstat(checkFd, fileStat);
+        printf("size = %ld\n",fileStat->st_size);
+        if (fileStat->st_size == filesize)
+        {
+            printf("client upload existed file\n");
+            off_t Existing = UPLOAD_EXISTING_FILE;
+            send(clientfd, &Existing, sizeof(off_t), 0);
+            close(checkFd);
+            return UPLOAD_EXISTING_FILE;
+        }
+        close(checkFd);
+    }
+
+    memset(fileStat,0,sizeof(struct stat));
+    //组合真实文件路径，打开\创建真实文件，获取真实文件大小，向客户端发送文件大小
     int filefd = get_file_size(md5, 0, &clientfd, fileStat);
 
     //SQL查询语句
@@ -161,7 +181,7 @@ int user_upload(MYSQL *db_connect, int clientfd, int father_id, const char *file
 
         //插入新纪录到file表
         sprintf(query, "insert into file (father_id,file_name,file_md5,file_size,type,user_id) values(%d, '%s', '%s', %ld, 'f',%d) ", father_id, filename, md5, filesize, user_id);
-        
+
         printf("%s\n", query);
 
         database_operate(db_connect, query, NULL);
@@ -197,7 +217,7 @@ int user_upload(MYSQL *db_connect, int clientfd, int father_id, const char *file
         lseek(filefd, 0, SEEK_END); //读写指针偏移到文件尾：断点续传
 
         char gets_buf[BUF_LEN] = {0};
-        printf("before recv\n");
+        // printf("before recv\n");
         while (recvLen < needLen)
         {
             memset(gets_buf, 0, BUF_LEN);
@@ -213,7 +233,7 @@ int user_upload(MYSQL *db_connect, int clientfd, int father_id, const char *file
 
             recvLen += ret;
         }
-        printf("after recv\n");
+        // printf("after recv\n");
     }
     return 0;
 }

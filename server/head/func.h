@@ -19,10 +19,14 @@ int TaskQueueInit(pTask_queue_t pQueue);
 int ThreadPoolCreate(pThread_pool_t pPool);
 int WriteLog(log_fd fd, char *ip, char *buf);
 int CmdAnalyse(pTask_node_t pTask, char *timestamp);
+int RePassWd(MYSQL *conn, int user_id, client_fd fd);
 int LoginOrSignin(pAccount_t pAcc, pTask_node_t pTask);
 int ThreadPoolInit(pThread_pool_t pPool, int thread_num);
+int FindCmdError(pCommand_t pCmd, int args, client_fd fd);
 int InsertTaskQueue(pTask_queue_t pQueue, pTask_node_t Node);
 int GetTaskNode(pTask_queue_t pQueue, pTask_node_t *pGetNode);
+
+
 
 #endif
 

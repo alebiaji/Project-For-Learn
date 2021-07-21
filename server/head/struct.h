@@ -33,13 +33,13 @@ typedef struct command_s{
     //命令参数数量
     int cmd_args;
     //命令
-    char cmd_content[64];
+    char cmd_content[20];
     //参数1
-    char cmd_arg1[64];
+    char cmd_arg1[100];
     //参数2
-    char cmd_arg2[64];
+    char cmd_arg2[100];
     //参数3
-    char cmd_arg3[64];
+    char cmd_arg3[36];
 }command_t, *pCommand_t;
 
 //任务节点：存储一个用户的各种信息

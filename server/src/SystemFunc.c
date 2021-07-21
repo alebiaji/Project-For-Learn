@@ -1,6 +1,9 @@
 #include "../head/func.h"
 
 /**
+ * tcp连接初始化函数
+ * 参数1：ip地址
+ * 参数2：端口号
  * 返回值：成功返回一个socket文件描述符，用于接收客户端连接，失败返回-1
 */
 socket_fd TcpInit(char *ip, int port){

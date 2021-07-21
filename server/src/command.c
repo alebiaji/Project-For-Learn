@@ -15,6 +15,8 @@ int getls(MYSQL *conn, int user_id, char *path, char *buf)
     MYSQL_RES *res;
     MYSQL_ROW row;
 
+    int ret = 0;
+
     //printf("%s\n", query);
 
     //脏数据
@@ -22,7 +24,7 @@ int getls(MYSQL *conn, int user_id, char *path, char *buf)
     int queryRet = mysql_query(conn, query);
     if (queryRet)
     {
-        printf("Error query: %s\n", mysql_error(conn));
+        // printf("Error query: %s\n", mysql_error(conn));
         return -1;
     }
     else
@@ -34,7 +36,8 @@ int getls(MYSQL *conn, int user_id, char *path, char *buf)
         row = mysql_fetch_row(res);
         if (NULL == row)
         {
-            printf("Don't query any data\n");
+            ret = -1;
+            // printf("Don't query any data\n");
         }
         else
         {
@@ -60,174 +63,189 @@ int getls(MYSQL *conn, int user_id, char *path, char *buf)
 
         mysql_free_result(res);
     }
+    return ret;
     return 0;
 }
 
 //cp src为源路径，dest为目标路径
-int cp(MYSQL *conn,int user_id , char *src,char *dest)
+int cp(MYSQL *conn, int user_id, char *src, char *dest)
 {
-	//用于保存对数据库的操作
-	char query[N];
-	memset(query,0,sizeof(query));
-	//
-	char **result=NULL;
-	int row=0;
-	char pathsrc[N];
-	char pathdest[N];
-	memset(pathsrc,0,sizeof(pathsrc));
-	memset(pathdest,0,sizeof(pathdest));
-	printf("before getpwd\n");
-	getpwd(conn,user_id,pathsrc);
-	getpwd(conn,user_id,pathdest);
-	printf("current dir=%s\n",pathsrc);
-	printf("current dir=%s\n",pathdest);
+    //用于保存对数据库的操作
+    char query[N];
+    memset(query, 0, sizeof(query));
+    //
+    char **result = NULL;
+    int row = 0;
+    char pathsrc[N];
+    char pathdest[N];
+    memset(pathsrc, 0, sizeof(pathsrc));
+    memset(pathdest, 0, sizeof(pathdest));
+    if (src[0] == '/' && dest[0] == '/')
+    {
+        strcpy(pathsrc, src);
+        strcpy(pathdest, dest);
+        // printf("pathsrc=%s\npathdest=%s\n",pathsrc,pathdest);
+    }
+    else if (src[0] == '/' && dest[0] != '/')
+    {
+        strcpy(pathsrc, src);
+        getpwd(conn, user_id, pathdest);
+        sprintf(pathdest, "%s/%s", pathdest, dest);
+        // printf("pathsrc=%s\npathdest=%s\n",pathsrc,pathdest);
+    }
+    else if (src[0] != '/' && dest[0] == '/')
+    {
+        getpwd(conn, user_id, pathsrc);
+        sprintf(pathsrc, "%s/%s", pathsrc, src);
+        strcpy(pathdest, dest);
+        // printf("pathsrc=%s\npathdest=%s\n",pathsrc,pathdest);
+    }
+    else if (src[0] != '/' && dest[0] != '/')
+    {
+        //相对路径
+        getpwd(conn, user_id, pathsrc);
+        getpwd(conn, user_id, pathdest);
+        // printf("pathsrc dir=%s\n",pathsrc);
+        // printf("pathdest dir=%s\n",pathdest);
+        sprintf(pathsrc, "%s/%s", pathsrc, src);
+        sprintf(pathdest, "%s/%s", pathdest, dest);
+        // printf("pathsrc=%s\npathdest=%s\n",pathsrc,pathdest);
+    }
+    //srcid为源文件对应数据表id，dest为目标文件对应数据表id
+    int srcid = getFileId(conn, user_id, pathsrc);
+    int destid = getFileId(conn, user_id, pathdest);
+    // printf("srcid=%d\ndestid=%d\n",srcid,destid);
+    //检测源文件是否为错误文件
+    if (srcid == -1)
+    {
+        // printf("error src filename;\n");
+        return -1;
+    }
+    //获取源文件文件类型
+    char src_type;
+    gettypefromid(conn, query, N, srcid, &src_type);
+    //获取目标文件类型
+    char dest_type;
+    if (destid != -1)
+    {
+        gettypefromid(conn, query, N, destid, &dest_type);
+    }
+    else
+    {
+        dest_type = src_type;
+    }
 
+    //row代表此时源文件是否存在，0为不存在
+    if (src_type == 'f' && dest_type == 'f' && destid != -1) //源文件为普通文件，目标文件存在且为普通文件
+    {
+        //    printf("cp file to file\n");
+        char file_md5[33];
+        //获取目的文件file_md5,目的文件count--
+        getmd5fromid(conn, query, N, destid, file_md5);
+        delcountfrommd5(conn, query, N, file_md5);
+        //获取源文件file_md5
+        getmd5fromid(conn, query, N, srcid, file_md5);
+        //获取源文件file_size
+        char file_size[32];
+        getsizefromid(conn, query, N, srcid, file_size);
+        //更改目标文件的数据，使其指向源文件
+        memset(query, 0, sizeof(query));
+        sprintf(query, "%s%s%s%s%s%s%s%d%s", "update file set file_md5=", "'", file_md5, "'", ",file_size=", file_size, " where id=", destid, ";");
+        puts(query);
+        row = database_operate(conn, query, &result);
+        //根据源文件md5，更改连接数count;
+        addcountfrommad5(conn, query, N, file_md5);
+        //    printf("cp file to file have finished\n");
+    }
+    else if (src_type == 'f' && destid == -1) //源文件为普通文件，且目标文件不存在
+    {
+        //    printf("cp file to newfile\n");
+        //先拼接路径，然后切割路径，确定新创建文件的父目录id，以及新创建的文件名
+        char save_ptr[16][20];
+        memset(save_ptr, 0, sizeof(save_ptr));
+        int length = 0;
+        //将目的文件路径进行分割
+        myStrTok(pathdest, save_ptr, &length);
+        memset(pathdest, 0, sizeof(pathdest));
+        //    printf("length=%d\n",length);
+        for (int i = 0; i < length - 1; i++)
+        {
+            // printf("save_ptr[%d]=%s\n",i,save_ptr[i]);
+            sprintf(pathdest, "%s%s%s", pathdest, "/", save_ptr[i]);
+            // printf("pathdest=%s\n",pathdest);
+        }
+        int father_id = 0;
+        father_id = getFileId(conn, user_id, pathdest);
+        //检测父目录路径是否出错
+        if (father_id == -1)
+        {
+            //    printf("father_id =-1,father dir don't exsit\n");
+            return -1;
+        }
+        //    printf("father_id=%d\n",father_id);
 
-	//拼接当前文件目录和文件名，形成路径，用于定位fileID
-	sprintf(pathsrc,"%s/%s",pathsrc,src);
-	sprintf(pathdest,"%s/%s",pathdest,dest);
-	printf("pathsrc=%s\npathdest=%s\n",pathsrc,pathdest);
-	//srcid为源文件对应数据表id，dest为目标文件对应数据表id
-	int srcid=getFileId(conn,user_id,pathsrc);
-	int destid=getFileId(conn,user_id,pathdest);
-	printf("srcid=%d\ndestid=%d\n",srcid,destid);
-	//检测源文件是否为错误文件
-	if(srcid==-1)
-	{
-		printf("error src filename;\n");
-		return -1;
-	}
-	//获取源文件文件类型	
-	char src_type;
-	gettypefromid(conn,query,N,srcid,&src_type);	
-	//获取目标文件类型
-	char dest_type;
-	if(destid!=-1)
-	{
-		gettypefromid(conn,query,N,destid,&dest_type);
-	}
-	else
-	{
-		dest_type=src_type;	
-	}
+        //获取新创建文件名
+        char newfilename[20];
+        memset(newfilename, 0, sizeof(newfilename));
+        strcpy(newfilename, save_ptr[length - 1]);
+        //    printf("newfilename=%s\n",newfilename);
 
-	//row代表此时源文件是否存在，0为不存在
-       if(src_type=='f'&&dest_type=='f'&&destid!=-1)//源文件为普通文件，目标文件存在且为普通文件
-       {
-	       printf("cp file to file\n");
-	       char file_md5[33];  
-	       //获取目的文件file_md5,目的文件count--
-	       getmd5fromid(conn,query,N,destid,file_md5);
-	       delcountfrommd5(conn,query,N,file_md5);
-	       //获取源文件file_md5
-	       getmd5fromid(conn,query,N,srcid,file_md5);
-	       //获取源文件file_size
-	       char file_size[32];
-	       getsizefromid(conn,query,N,srcid,file_size);
-	       //更改目标文件的数据，使其指向源文件
-	       memset(query,0,sizeof(query));
-	       sprintf(query,"%s%s%s%s%s%s%s%d%s","update file set file_md5=","'",file_md5,"'",",file_size=",file_size," where id=",destid,";");
-	       puts(query);
-	       row=database_operate(conn,query,&result);
-	       //根据源文件md5，更改连接数count;
-	       addcountfrommad5(conn,query,N,file_md5);
-	       printf("cp file to file have finished\n");
+        //获取源文件MD5
+        char file_md5[33];
+        getmd5fromid(conn, query, N, srcid, file_md5);
+        //获取源文件size
+        char file_size[20];
+        getsizefromid(conn, query, N, srcid, file_size);
+        //创建该新文件数据库目录项
+        memset(query, 0, sizeof(query));
+        strcpy(query, "insert into file (father_id,file_name,file_md5,file_size,type,user_id) values(");
+        sprintf(query, "%s%d%s%s%s%s%s%s%s%c%s%d%s", query, father_id, ",'", newfilename, "','", file_md5, "',", file_size, ",'", dest_type, "',", user_id, ");");
+        puts(query);
+        row = database_operate(conn, query, &result);
 
-       }	       
-       else if(src_type=='f'&&destid==-1)//源文件为普通文件，且目标文件不存在
-       {
-	       printf("cp file to newfile\n");
-	       //先拼接路径，然后切割路径，确定新创建文件的父目录id，以及新创建的文件名
-	       char save_ptr[16][20];
-	       memset(save_ptr,0,sizeof(save_ptr));
-	       int length=0;
-	       //将目的文件路径进行分割
-	       myStrTok(pathdest,save_ptr,&length);
-	       memset(pathdest,0,sizeof(pathdest));
-	       printf("length=%d\n",length);
-	       for(int i=0;i<length-1;i++)
-	       {
-	       		printf("save_ptr[%d]=%s\n",i,save_ptr[i]);
-			sprintf(pathdest,"%s%s%s",pathdest,"/",save_ptr[i]);
-			printf("pathdest=%s\n",pathdest);
-	       }
-	       int father_id=0;
-	       father_id=getFileId(conn,user_id,pathdest);
-	       //检测父目录路径是否出错
-	       if(father_id==-1)
-	       {
-		       printf("father_id =-1,father dir don't exsit\n");
-		       return -1;
-	       		
-	       }
-	       printf("father_id=%d\n",father_id);
-	       
+        addcountfrommad5(conn, query, N, file_md5);
+        //   printf("cp file to newfile have finished\n");
+    }
+    else if (src_type == 'f' && dest_type == 'd') //源文件为普通文件，且目标文件为目录文件
+    {
 
-	       //获取新创建文件名
-	       char newfilename[20];
-	       memset(newfilename,0,sizeof(newfilename));
-	       strcpy(newfilename,save_ptr[length-1]);
-	       printf("newfilename=%s\n",newfilename);
-		
-	       //获取源文件MD5			
-	       char file_md5[33];
-	       getmd5fromid(conn,query,N,srcid,file_md5);
-	       //获取源文件size
-	       char file_size[20];
-	       getsizefromid(conn,query,N,srcid,file_size);
-	       //创建该新文件数据库目录项
-	       memset(query,0,sizeof(query));
-	       strcpy(query,"insert into file (father_id,file_name,file_md5,file_size,type,user_id) values(");  
-	       sprintf(query,"%s%d%s%s%s%s%s%s%s%c%s%d%s",query,father_id,",'",newfilename,"','",file_md5,"',",file_size,",'",dest_type,"',",user_id,");");                         
-	       puts(query);
-	       row=database_operate(conn,query,&result);          
-
-	      
-	      addcountfrommad5(conn,query,N,file_md5); 
-	      printf("cp file to newfile have finished\n");
-
-
-       }
-       else if(src_type=='f'&&dest_type=='d')//源文件为普通文件，且目标文件为目录文件
-       {
-	       
-	       char file_md5[33];
-	       char file_size[20];   
-	       char file_name[21];
-	       printf("cp file to dir\n");	
-	      //判断目标目录文件下是否有文件目录
-	       int detflag=0;
-	       //获得源文件名称
-	       getnamefromid(conn,query,N,srcid,file_name);
-	       detflag=detectsame(conn,query,N,file_name,destid);
-	       printf("detflag============%d\n",detflag);
-	       int newdestid=0;
-	       //如果有重名文件
-	       if(detflag==0)
-	       {
-		       //重新拼接重复文件路径
-	       		sprintf(pathdest,"%s%s%s",pathdest,"/",file_name);
-			printf("pathsrc of samename dirfile=%s\n",pathdest);
-			newdestid=getFileId(conn,user_id,pathdest);
-			printf("newdestid=%d\n",newdestid);
-			//
-			getmd5fromid(conn,query,N,srcid,file_md5);
-			getsizefromid(conn,query,N,srcid,file_size);
-			//源文件count++,在count--之前否则会被覆盖掉
-			addcountfrommad5(conn,query,N,file_md5);
-			//目标文件count--，需在执行拷贝操作之前，否则不能获得新目的文件的MD5的值
-			getmd5fromid(conn,query,N,newdestid,file_md5);
-			delcountfrommd5(conn,query,N,file_md5);	
-			memset(query,0,sizeof(query));
-			//重新获取文件md5的值
-			getmd5fromid(conn,query,N,srcid,file_md5);
-			memset(query,0,sizeof(query));
-			sprintf(query,"update file set file_md5='%s',file_size=%s where id=%d;",file_md5,file_size,newdestid);
-			puts(query);
-			//执行拷贝操作；
-			database_operate(conn,query,&result);
-		}
-	       else //如果没有重名文件
+        char file_md5[33];
+        char file_size[20];
+        char file_name[20];
+        //    printf("cp file to dir\n");
+        //判断目标目录文件下是否有文件目录
+        int detflag = 0;
+        //获得源文件名称
+        getnamefromid(conn, query, N, srcid, file_name);
+        detflag = detectsame(conn, query, N, file_name, destid);
+        //    printf("detflag============%d\n",detflag);
+        int newdestid = 0;
+        //如果有重名文件
+        if (detflag == 0)
+        {
+            //重新拼接重复文件路径
+            sprintf(pathdest, "%s%s%s", pathdest, "/", file_name);
+            // printf("pathsrc of samename dirfile=%s\n",pathdest);
+            newdestid = getFileId(conn, user_id, pathdest);
+            // printf("newdestid=%d\n",newdestid);
+            //
+            getmd5fromid(conn, query, N, srcid, file_md5);
+            getsizefromid(conn, query, N, srcid, file_size);
+            //源文件count++,在count--之前否则会被覆盖掉
+            addcountfrommad5(conn, query, N, file_md5);
+            //目标文件count--，需在执行拷贝操作之前，否则不能获得新目的文件的MD5的值
+            getmd5fromid(conn, query, N, newdestid, file_md5);
+            delcountfrommd5(conn, query, N, file_md5);
+            memset(query, 0, sizeof(query));
+            //重新获取文件md5的值
+            getmd5fromid(conn, query, N, srcid, file_md5);
+            memset(query, 0, sizeof(query));
+            sprintf(query, "update file set file_md5='%s',file_size='%s' where id=%d;", file_md5, file_size, newdestid);
+            puts(query);
+            //执行拷贝操作；
+            database_operate(conn, query, &result);
+        }
+        else //如果没有重名文件
         {
             //获取源文件MD5;
             getmd5fromid(conn, query, N, srcid, file_md5);
@@ -235,101 +253,93 @@ int cp(MYSQL *conn,int user_id , char *src,char *dest)
             getsizefromid(conn, query, N, srcid, file_size);
             //新建目录项
             memset(query, 0, sizeof(query));
-            sprintf(query,"insert into file (father_id,file_name,file_md5,file_size,type,user_id) values(%d,'%s','%s','%s','f',%d)",destid,file_name,file_md5,file_size,user_id);
-            printf("father_id = %d\n", destid);
-            printf("file_name = %s\n", file_name);
-            printf("file_md5 = %s\n", file_md5);
-            printf("file_size = %s\n", file_size);
-            printf("father_id = %d\n", user_id);
+            strcpy(query, "insert into file (father_id,file_name,file_md5,file_size,type,user_id) values(");
+            sprintf(query, "insert into file (father_id,file_name,file_md5,file_size,type,user_id) values (%d,'%s','%s','%s','f',%d);", destid, file_name, file_md5, file_size, user_id);
+            //    printf("query=%s\n",query);
             row = database_operate(conn, query, &result);
-            
             //源文件count++
-            addcountfrommad5(conn, query, 128, file_md5);
+            addcountfrommad5(conn, query, N, file_md5);
         }
-		printf("cp file to dir\n");	
+        // printf("cp file to dir\n");
+    }
+    else if (src_type == 'd' && dest_type == 'd' && destid != -1)
+    {
+        //目标目录文件存在，拷贝源目录文件至目标目录文件之下
+        //    printf("cp dir to dir\n");
+        //判断目标目录文件下是否有文件目录
+        int detflag = 0;
+        char file_name[20];
+        memset(file_name, 0, sizeof(file_name));
+        getnamefromid(conn, query, N, srcid, file_name);
+        detflag = detectsame(conn, query, N, file_name, destid);
+        //    printf("detflag==========================%d\n",detflag);
+        int newdestid = 0;
+        //
+        if (detflag == 0)
+        {
+            //获取重名目标的绝对路径,以及id
+            sprintf(pathdest, "%s%s%s", pathdest, "/", file_name);
+            // printf("pathsrc of samename dirfile=%s\n",pathdest);
+            newdestid = getFileId(conn, user_id, pathdest);
+            // printf("id of samename dir\n");
+            //delete destdir
+            // printf("before rmDirFunc\n");
+            //删除目标目录文件下的重名文件
+            rmDirFunc(conn, user_id, newdestid);
+            // printf("after rmDirFunc\n");
+            //递归往新文件目录下复制文件；
+            digui(conn, file_name, srcid, destid, user_id, 0, NULL);
+        }
+        else
+        {
+            digui(conn, file_name, srcid, destid, user_id, 0, NULL);
+        }
+    }
+    else if (src_type == 'd' && dest_type == 'd' && destid == -1)
+    {
+        //目标文件不存在，创建目标目录文件并将源目录文件拷贝至目录文件之下
+        //    printf("cp dir to new dir\n");
+        //判断是否有重名目录文件
 
+        //先切割路径，确定新创建文件的父目录id，以及新创建的文件名
+        char save_ptr[16][20];
+        memset(save_ptr, 0, sizeof(save_ptr));
+        int length = 0;
+        //确定新创建文件的父目录id
 
-       }
-       else if(src_type=='d'&&dest_type=='d'&&destid!=-1)
-       {
-	       //目标目录文件存在，拷贝源目录文件至目标目录文件之下
-       	       printf("cp dir to dir\n");  	
-	      //判断目标目录文件下是否有文件目录
-	       int detflag=0;
-	       char file_name[21];
-	       memset(file_name,0,sizeof(file_name));
-	       getnamefromid(conn,query,N,srcid,file_name);
-	       detflag=detectsame(conn,query,N,file_name,destid);
-	       printf("detflag==========================%d\n",detflag);
-	       int newdestid=0;
-	       //
-	       if(detflag==0)
-	       {
-		       //获取重名目标的绝对路径,以及id
-	       		sprintf(pathdest,"%s%s%s",pathdest,"/",file_name);
-			printf("pathsrc of samename dirfile=%s\n",pathdest);
-			newdestid=getFileId(conn,user_id,pathdest);
-			printf("id of samename dir\n");
-			//delete destdir
-			printf("before rmDirFunc\n");
-			//删除目标目录文件下的重名文件
-			rmDirFunc(conn,user_id,newdestid);
-			printf("after rmDirFunc\n");
-			//递归往新文件目录下复制文件；
-			digui(conn,file_name,srcid,destid,user_id,0,NULL);	
-	       }
-	       else
-	       {
-			digui(conn,file_name,srcid,destid,user_id,0,NULL);
-	       }
-
-       }
-       else if(src_type=='d'&&dest_type=='d'&&destid==-1)
-       {
-       	       //目标文件不存在，创建目标目录文件并将源目录文件拷贝至目录文件之下
-	       printf("cp dir to new dir\n");	
-	       //判断是否有重名目录文件
-	       
-	       //先切割路径，确定新创建文件的父目录id，以及新创建的文件名
-	       char save_ptr[16][20];
-	       memset(save_ptr,0,sizeof(save_ptr));
-	       int length=0;
-		//确定新创建文件的父目录id 
-	       
-	       myStrTok(pathdest,save_ptr,&length);
-	       memset(pathdest,0,sizeof(pathdest));
-	       printf("length=%d\n",length);
-	       for(int i=0;i<length-1;i++)
-	       {
-	       		printf("save_ptr[%d]=%s\n",i,save_ptr[i]);
-			sprintf(pathdest,"%s%s%s",pathdest,"/",save_ptr[i]);
-			printf("pathdest=%s\n",pathdest);
-	       }
-	       int father_id=0;
-	       father_id=getFileId(conn,user_id,pathdest);
-	       printf("father_id=%d\n",father_id);
-	       if(father_id==-1)
-	       {
-	       		return -1;
-	       }
-	       //获取新创建目录文件名
-	       char newdirname[20];
-	       memset(newdirname,0,sizeof(newdirname));
-	       strcpy(newdirname,save_ptr[length-1]);
-	       printf("newfilename=%s\n",newdirname);	
- 		//递归将源文件目录拷贝到新创建目录文件之下
-	       char file_name[21];
-	       getnamefromid(conn,query,N,srcid,file_name);
-	       printf("dihui(conn,%s,%d,%d,%d)",file_name,srcid,father_id,user_id);
-	       digui(conn,file_name,srcid,father_id,user_id,1,newdirname);
-	      
-       }
-       else if(src_type=='d'&&dest_type=='f')
-       {
-       		printf("you can't cp dirfile to normal file; \n");
-		return -1;
-       }
-       return 0;
+        myStrTok(pathdest, save_ptr, &length);
+        memset(pathdest, 0, sizeof(pathdest));
+        //    printf("length=%d\n",length);
+        for (int i = 0; i < length - 1; i++)
+        {
+            // printf("save_ptr[%d]=%s\n",i,save_ptr[i]);
+            sprintf(pathdest, "%s%s%s", pathdest, "/", save_ptr[i]);
+            // printf("pathdest=%s\n",pathdest);
+        }
+        int father_id = 0;
+        father_id = getFileId(conn, user_id, pathdest);
+        //    printf("father_id=%d\n",father_id);
+        if (father_id == -1)
+        {
+            return -1;
+        }
+        //获取新创建目录文件名
+        char newdirname[20];
+        memset(newdirname, 0, sizeof(newdirname));
+        strcpy(newdirname, save_ptr[length - 1]);
+        // printf("newfilename=%s\n", newdirname);
+        //递归将源文件目录拷贝到新创建目录文件之下
+        char file_name[20];
+        getnamefromid(conn, query, N, srcid, file_name);
+        // printf("dihui(conn,%s,%d,%d,%d)", file_name, srcid, father_id, user_id);
+        digui(conn, file_name, srcid, father_id, user_id, 1, newdirname);
+    }
+    else if (src_type == 'd' && dest_type == 'f')
+    {
+        // printf("you can't cp dirfile to normal file; \n");
+        return -1;
+    }
+    return 0;
 }
 
 //tree 返回直接打印的内容存在buf里
@@ -423,7 +433,7 @@ int makedir(MYSQL *conn, int user_id, char *path)
     int queryRet = mysql_query(conn, query);
     if (queryRet)
     {
-        printf("Error query: %s\n", mysql_error(conn));
+        // printf("Error query: %s\n", mysql_error(conn));
         return -1;
     }
     else
@@ -435,7 +445,7 @@ int makedir(MYSQL *conn, int user_id, char *path)
         row = mysql_fetch_row(res);
         if (NULL == row)
         {
-            printf("Don't query any data\n");
+            // printf("Don't query any data\n");
         }
         else
         {
@@ -449,7 +459,7 @@ int makedir(MYSQL *conn, int user_id, char *path)
                     /* printf("%8s ", row[queryRet]); */
                     if (strcmp(row[queryRet], save_ptr[length - 1]) == 0)
                     {
-                        printf("文件夹已存在！\n");
+                        // printf("文件夹已存在！\n");
                         return -1;
                     }
                 }
@@ -463,13 +473,13 @@ int makedir(MYSQL *conn, int user_id, char *path)
     memset(query, 0, 200);
 
     sprintf(query, "insert into file (father_id,file_name,file_md5,file_size,type,user_id) values (%d,'%s',%d,%d,'%s',%d%s;", id, save_ptr[length - 1], 0, 0, "d", user_id, ")");
-    printf("------------------query3:%s------------------\n", query);
+    // printf("------------------query3:%s------------------\n", query);
     //printf("%s\n",query);
 
     queryRet = mysql_query(conn, query);
     if (queryRet)
     {
-        printf("Error query: %s\n", mysql_error(conn));
+        // printf("Error query: %s\n", mysql_error(conn));
         return -1;
     }
     else
@@ -489,7 +499,7 @@ int rm(MYSQL *conn, int user_id, char *path)
     //不存在返回-1
     if (id == -1)
     {
-        printf("要删除的文件不存在\n");
+        // printf("要删除的文件不存在\n");
         return -1;
     }
 
@@ -651,13 +661,13 @@ int mv(MYSQL *conn, int user_id, char *src, char *dest)
     //如果源文件不存在直接返回
     if (srcFileId == -1)
     {
-        printf("源文件不存在!!!\n");
+        // printf("源文件不存在!!!\n");
         return -1;
     }
     //如果dest存在且是文件也直接返回
     if (destFileId != -1 && destFileType == 2)
     {
-        printf("目标文件已存在!!!\n");
+        // printf("目标文件已存在!!!\n");
         return -1;
     }
 
@@ -730,6 +740,11 @@ int mv(MYSQL *conn, int user_id, char *src, char *dest)
 
     // printf("newdestpath = %s\n",newdestpath);
 
+    if (strlen(newdestpath) == 0)
+    {
+        return -1;
+    }
+
     char newdestpathtmp[128] = {0};
     sprintf(newdestpathtmp, "%s%s%s", newdestpath, "/", srcname);
     // printf("newdestpathtmp = %s\n",newdestpathtmp);
@@ -753,7 +768,7 @@ int mv(MYSQL *conn, int user_id, char *src, char *dest)
         int newdestid = getFileId(conn, user_id, newdestpathtmp);
         if (getFileTypeFromId(conn, newdestid) != -1)
         {
-            printf("已存在同名文件或目录\n");
+            // printf("已存在同名文件或目录\n");
             return -1;
         }
 
@@ -847,7 +862,7 @@ int getpwd(MYSQL *conn, int user_id, char *buf)
     int queryRet = mysql_query(conn, query);
     if (queryRet)
     {
-        printf("Error making query: %s\n", mysql_error(conn));
+        // printf("Error making query: %s\n", mysql_error(conn));
         return -1;
     }
     else
@@ -857,7 +872,7 @@ int getpwd(MYSQL *conn, int user_id, char *buf)
 
         if (NULL == row)
         {
-            printf("getpwd:Don't find any data\n");
+            // printf("getpwd:Don't find any data\n");
             return -1;
         }
         else
@@ -929,14 +944,14 @@ int changeDir(MYSQL *conn, int user_id, char *dest)
     int newpathid = getFileId(conn, user_id, newpath);
     if (newpathid == -1)
     {
-        printf("没有这个目录\n");
+        // printf("没有这个目录\n");
         return -1;
     }
     // printf("newpathid = %d\n",newpathid);
 
     if (getFileTypeFromId(conn, newpathid) != 1)
     {
-        printf("不是一个目录\n");
+        // printf("不是一个目录\n");
         return -1;
     }
 
@@ -959,7 +974,7 @@ int changeDir(MYSQL *conn, int user_id, char *dest)
 
         if (queryResult)
         {
-            printf("Error making query:%s\n", mysql_error(conn));
+            // printf("Error making query:%s\n", mysql_error(conn));
             return -1;
         }
         else
@@ -971,7 +986,7 @@ int changeDir(MYSQL *conn, int user_id, char *dest)
             }
             else
             {
-                printf("update fail, mysql_affected_rows:%d\n", ret);
+                // printf("update fail, mysql_affected_rows:%d\n", ret);
                 return -1;
             }
         }
@@ -1204,7 +1219,7 @@ int getls_id(MYSQL *conn, int user_id, int id, int temp_id[])
     int queryRet = mysql_query(conn, query);
     if (queryRet)
     {
-        printf("Error query: %s\n", mysql_error(conn));
+        // printf("Error query: %s\n", mysql_error(conn));
         return -1;
     }
     else
@@ -1255,7 +1270,7 @@ int getFileName(MYSQL *conn, int id, char *file_name)
     int queryRet = mysql_query(conn, query);
     if (queryRet)
     {
-        printf("Error query: %s\n", mysql_error(conn));
+        // printf("Error query: %s\n", mysql_error(conn));
         return -1;
     }
     else

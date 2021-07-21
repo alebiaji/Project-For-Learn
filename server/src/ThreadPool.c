@@ -2,10 +2,8 @@
 
 //void型的线程清理函数!
 void clean_func(void *p){
-
     pTask_queue_t pQue = (pTask_queue_t)p;
     pthread_mutex_unlock(&pQue->queue_mutex);
-
 }
 
 /**
@@ -47,14 +45,15 @@ void *thread_func(void *p){
 
         //取节点成功，用文件描述符发送文件，任务完成释放节点资源，置为空指针
         if(1 == get_success){
+            printf("----------------Client connection----------------\n");
             UserFunc(pTask);
-            printf("----------------UserFunc Out----------------\n");
+            printf("------------------UserFunc Over------------------\n");
             free(pTask);
             pTask = NULL;
         }
 
         if(1 == pQue->exit_flag){
-            printf("----------------Thread Out----------------\n");
+            printf("-------------------Thread Over-------------------\n");
             //线程退出
             pthread_exit(NULL);
         }
@@ -62,7 +61,12 @@ void *thread_func(void *p){
     }
 }
 
-//线程池的初始化：申请空间，初始化任务队列
+/**
+ * 线程池初始化函数
+ * 参数1：线程池结构体地址
+ * 参数2：线程数量
+ * 返回值：成功返回0
+*/
 int ThreadPoolInit(pThread_pool_t pPool, int thread_num){
 
     int ret = 0;
@@ -80,14 +84,18 @@ int ThreadPoolInit(pThread_pool_t pPool, int thread_num){
     return 0;
 }
 
-//线程的创建
+/**
+ * 线程池创建函数
+ * 参数：线程池地址
+ * 返回值：成功返回0
+*/
 int ThreadPoolCreate(pThread_pool_t pPool){
     
     int ret = 0;
     
     //循环创建线程
     for(int i = 0; i < pPool->thread_num; ++i){
-        //两种方式
+        //两种方式创建线程
         /* ret = pthread_create(pPool->pThread_id + i, NULL, thread_func, &pPool->task_que); */
         ret = pthread_create(&pPool->pThread_id[i], NULL, thread_func, &pPool->task_queue);
         THREAD_ERROR_CHECK(ret, "pthread_create");

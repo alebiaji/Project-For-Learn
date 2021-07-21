@@ -3,6 +3,7 @@
 /**
  * 功能：初始化任务队列
  * 参数：任务队列
+ * 返回值：返回0，不会失败
  */
 int TaskQueueInit(pTask_queue_t pQue){
 
@@ -46,9 +47,9 @@ int InsertTaskQueue(pTask_queue_t pQue, pTask_node_t pTaskNode){
 
 /**
  * 功能：取出任务队列中的任务
- * 返回值：取节点成功返回1，失败返回-1
  * 参数1：任务队列
  * 参数2：出队节点（任务）
+ * 返回值：取节点成功返回1，失败返回0
  */
 int GetTaskNode(pTask_queue_t pQue, pTask_node_t *pGetTaskNode){
 
