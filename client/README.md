@@ -1,5 +1,4 @@
-# Project-For-100K
-## 客户端执行
+# 客户端执行
 
 1. `make`
 2. `./main <ip> <port>`
