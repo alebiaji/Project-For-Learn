@@ -82,4 +82,12 @@ typedef struct {
     task_queue_t task_queue;
 }thread_pool_t, *pThread_pool_t;
 
+//数据库连接信息
+typedef struct database_s{
+    char db_ip[16];
+    char db_user[20];
+    char db_passwd[20];
+    char db_name[20];
+}database_t, pDatabase_t;
+
 #endif

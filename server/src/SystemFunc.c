@@ -3,7 +3,7 @@
 /**
  * 返回值：成功返回一个socket文件描述符，用于接收客户端连接，失败返回-1
 */
-socket_fd TcpInit(){
+socket_fd TcpInit(char *ip, int port){
 
     int ret = 0;
 
@@ -12,8 +12,8 @@ socket_fd TcpInit(){
 
     /*分别设置协议、IP地址和端口号*/
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr("192.168.5.87");
-    addr.sin_port = htons(2000);
+    addr.sin_addr.s_addr = inet_addr(ip);
+    addr.sin_port = htons(port);
 
     socket_fd sfd = socket(AF_INET, SOCK_STREAM, 0);
     ERROR_CHECK(sfd, -1, "socket");
@@ -108,7 +108,7 @@ void GetTimeStamp(char *str, int flag){
 int WriteLog(log_fd fd, char *ip, char *buf){
     
     char timestamp[20] = { 0 };
-    char log_content[100] = { 0 };
+    char log_content[4096] = { 0 };
 
     GetTimeStamp(timestamp, 1);
     sprintf(log_content, "[%s %s]%s\n", timestamp, ip, buf);

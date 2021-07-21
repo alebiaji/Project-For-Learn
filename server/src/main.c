@@ -13,6 +13,12 @@ void sigfunc_13(int signum){
 
 int main()
 {
+    char ip[16] = { 0 }; 
+    int port = 0;
+    FILE *fp = fopen("./config/ip.ini", "r");
+    fscanf(fp, "ip = %s port = %d", ip, &port);
+    fclose(fp);
+
     signal(10, sigfunc);
     signal(13, sigfunc_13);
     pipe(out_pipe);
@@ -47,7 +53,7 @@ int main()
     THREAD_ERROR_CHECK(ret, "ThreadPoolCreate");
 
     //3.创建Tcp套接字监听连接
-    socket_fd sfd = TcpInit();
+    socket_fd sfd = TcpInit(ip, port);
     ERROR_CHECK(ret, -1, "TcpInit");
 
     //4.创建epoll，参数只要大于0就行，并将需要监听的文件描述符添加到epoll中

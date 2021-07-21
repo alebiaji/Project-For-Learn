@@ -26,15 +26,16 @@
     }while(0)
 
 //线程池的数量
-#define PTHREAD_NUM 100
+#define PTHREAD_NUM 10
 
 //salt值字符串长度
 #define STR_LEN 10
 
+//注册操作
+#define SIGNIN 0
+
 //登录操作
 #define LOGIN 1
 
-//注册操作
-#define SIGNIN 0
 
 #endif

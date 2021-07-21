@@ -65,7 +65,7 @@ int getFileName(MYSQL* conn,int id,char* file_name);
 
 
 //夏坚强的接口函数（私用）
-int digui(MYSQL *conn, char *src, int srcid, int destid, int user_id);
+int digui(MYSQL *conn, char *src, int srcid, int destid, int user_id,int flag,char *newdirname);
 int getmd5fromid(MYSQL *conn, char *query, int qlen, int id, char *file_md5);
 int gettypefromid(MYSQL *conn, char *query, int qlen, int id, char *type);
 int getnamefromid(MYSQL *conn, char *query, int qlen, int id, char *file_name);
