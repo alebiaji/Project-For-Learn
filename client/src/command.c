@@ -10,7 +10,7 @@ int GetCommand(pcommand_t pcommand, char *buf)
 	int i = TransToWord(buf, word); //i代表这条命令的参数有几个
 
 	//如果用户输入的全是空格，那么word[0]中就只有一个'\0'，长度就是1
-	if (strlen(word[0]) == 0)
+	if (i < 0)
 	{
 		//这里就什么也不做，直接返回
 		return COMMAND_ERROR;
@@ -59,7 +59,11 @@ int TransToWord(char *str, char **word)
 	}
 	*p2 = '\0';
 	word[i] = p1; //保存最后一个单词的地址
-
+	
+	if(0 == strlen(word[i])){
+		--i;
+	}
+	
 	return i;
 }
 
